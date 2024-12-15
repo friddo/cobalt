@@ -1,4 +1,4 @@
-EXE = metal
+EXE = cobalt
 
 SOURCES = main.cpp mtl_implementation.cpp GLFWBridge.mm
 
@@ -9,7 +9,7 @@ SOURCES += $(IMGUI_DIR)/imgui_impl_glfw.cpp $(IMGUI_DIR)/imgui_impl_metal.mm
 OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES))))
 
 CXXFLAGS = -std=c++17 -Wall -Wformat
-LIBS += -framework Metal -framework Foundation -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore
+LIBS += -framework Metal -framework Foundation -framework QuartzCore
 LIBS += -L/usr/local/lib -L/opt/homebrew/lib
 LIBS += -lglfw
 

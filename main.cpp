@@ -7,12 +7,16 @@
 #include "GLFWBridge.hpp"
 
 // Metal headers
+#include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <QuartzCore/CAMetalLayer.hpp>
 #include <QuartzCore/QuartzCore.hpp>
 
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
-// global window layer
+// global layer 
 CA::MetalLayer* layer;
 
 
@@ -26,7 +30,8 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     layer->setDrawableSize(CGSizeMake(width, height));
 }
 
-int main(int, char**) {
+
+int main() {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -74,6 +79,31 @@ int main(int, char**) {
     MTL::Device* device = static_cast<MTL::Device*>(MTL::CopyAllDevices()->object(0));
     MTL::CommandQueue* commandQueue = device->newCommandQueue();
 
+
+
+    // Fetch the shader source code
+    std::ifstream file("shaders/shader.metal");
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file." << std::endl;
+        return -1;
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+
+    // Create Metal library from source
+    NS::Error* error = nullptr;
+    NS::String* kernelSource = NS::String::string(buffer.str().c_str(), NS::UTF8StringEncoding);
+    MTL::Library* library = device->newLibrary(kernelSource, nullptr, &error);
+
+    // Setup render pipeline
+    MTL::RenderPipelineDescriptor* pipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
+    pipelineDescriptor->setVertexFunction(library->newFunction(NS::String::string("vert_shader", NS::UTF8StringEncoding)));
+    pipelineDescriptor->setFragmentFunction(library->newFunction(NS::String::string("frag_shader", NS::UTF8StringEncoding)));
+    pipelineDescriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+
+    MTL::RenderPipelineState* pipelineState = device->newRenderPipelineState(pipelineDescriptor, &error);
+
+
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplMetal_Init(device);
@@ -81,6 +111,7 @@ int main(int, char**) {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
 
+    // magic sauce, interfaces with obj-c to create a metal layer and attach it to the window
     layer = CA::MetalLayer::layer();
     layer->setDevice(device);
     layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
@@ -90,10 +121,9 @@ int main(int, char**) {
 
     MTL::RenderPassDescriptor* renderPassDescriptor = MTL::RenderPassDescriptor::renderPassDescriptor();
 
-    // Our state
-    bool show_demo_window = true;
-    bool show_another_window = false;
-    float clear_color[4] = {0.45f, 0.55f, 0.60f, 1.00f};
+    // imgui state
+    bool show_demo_window = false;
+    float f = 0;
 
     while (!glfwWindowShouldClose(window))  {
         NS::AutoreleasePool* pPool = NS::AutoreleasePool::alloc()->init();
@@ -104,68 +134,47 @@ int main(int, char**) {
 
         MTL::CommandBuffer* commandBuffer = commandQueue->commandBuffer();
         MTL::RenderPassColorAttachmentDescriptor* cd = renderPassDescriptor->colorAttachments()->object(0);
-        cd->setClearColor(MTL::ClearColor(clear_color[0], clear_color[1], clear_color[2], clear_color[3]));
+        cd->setClearColor(MTL::ClearColor(0.45f, 0.55f, 0.60f, 1.00f));
         cd->setTexture(drawable->texture());
         cd->setLoadAction(MTL::LoadActionClear);
         cd->setStoreAction(MTL::StoreActionStore);
 
         MTL::RenderCommandEncoder* renderCommandEncoder = commandBuffer->renderCommandEncoder(renderPassDescriptor);
-        renderCommandEncoder->pushDebugGroup(NS::String::string("ImGui demo", NS::UTF8StringEncoding));
+
+        // render our quad
+        renderCommandEncoder->setRenderPipelineState(pipelineState);
+        renderCommandEncoder->setFragmentBytes(&f, sizeof(float), 0);
+        renderCommandEncoder->drawPrimitives(MTL::PrimitiveTypeTriangle, static_cast<NS::UInteger>(0), static_cast<NS::UInteger>(6));
+
 
         // Start the Dear ImGui frame
+        renderCommandEncoder->pushDebugGroup(NS::String::string("ImGui", NS::UTF8StringEncoding));
         ImGui_ImplMetal_NewFrame(renderPassDescriptor);
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
 
         ImGui::PushFont(font);
-
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
         {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
+            ImGui::Begin("Cobalt");
+            ImGui::Checkbox("Demo Window", &show_demo_window);
+            ImGui::SliderFloat("blue", &f, 0, 1); // example parameter
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
-
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
             ImGui::End();
         }
 
         ImGui::PopFont();
 
-        // Rendering
+        // Render ImGui windows
         ImGui::Render();
         ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, renderCommandEncoder);
-
         renderCommandEncoder->popDebugGroup();
-        renderCommandEncoder->endEncoding();
 
+        // End render command and commit
+        renderCommandEncoder->endEncoding();
         commandBuffer->presentDrawable(drawable);
         commandBuffer->commit();
 
