@@ -13,7 +13,7 @@ LIBS += -framework Metal -framework Foundation -framework QuartzCore
 LIBS += -L/usr/local/lib -L/opt/homebrew/lib
 LIBS += -lglfw
 
-INCLUDE += -Imetal-cpp -Imetal-cpp-extensions -Iimgui -I/opt/homebrew/include
+INCLUDE += -Imetal-cpp -Iimgui -I/opt/homebrew/include
 
 # rules
 %.o: %.cpp
