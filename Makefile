@@ -28,13 +28,12 @@ INCLUDE += -Imetal-cpp -Iimgui -I/opt/homebrew/include
 %.o:$(IMGUI_DIR)/%.mm
 	$(CXX) $(CXXFLAGS) $(INCLUDE) -ObjC++ -fobjc-weak -fobjc-arc -c -o $@ $<
 
-all: clean $(EXE)
+all: $(EXE)
 run: $(EXE)
 	./$(EXE)
 
 $(EXE): $(OBJS)
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(INCLUDE) $(LIBS)
-	rm -f $(OBJS)
 
 clean:
 	rm -f $(EXE) $(OBJS)
